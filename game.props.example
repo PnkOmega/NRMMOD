@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copy this file to "game.props" and point GamePath at your NIGHT-RUNNERS install
+     (the folder that contains the game .exe and the BepInEx folder). Keep the trailing slash. -->
+<Project>
+	<PropertyGroup>
+		<GamePath>C:\Games\NIGHT-RUNNERS\</GamePath>
+	</PropertyGroup>
+</Project>

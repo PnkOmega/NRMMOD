@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<Import Project="../game.props" />
+
+	<PropertyGroup>
+		<TargetFramework>net6.0</TargetFramework>
+		<AssemblyName>NRRadio</AssemblyName>
+		<RootNamespace>NRRadio</RootNamespace>
+		<LangVersion>latest</LangVersion>
+		<Nullable>disable</Nullable>
+		<DebugType>none</DebugType>
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+
+		<BepInExPath>$(GamePath)BepInEx\</BepInExPath>
+		<PluginOutPath>$(BepInExPath)plugins\NRRadio\</PluginOutPath>
+		<!-- BepInEx core libs + the interop assemblies BepInEx generates on first launch. -->
+		<AssemblySearchPaths>$(AssemblySearchPaths);$(BepInExPath)core\;$(BepInExPath)interop\</AssemblySearchPaths>
+	</PropertyGroup>
+
+	<ItemDefinitionGroup>
+		<Reference>
+			<Private>False</Private>
+		</Reference>
+	</ItemDefinitionGroup>
+
+	<ItemGroup>
+		<Reference Include="0Harmony" />
+		<Reference Include="BepInEx.Core" />
+		<Reference Include="BepInEx.Unity.Common" />
+		<Reference Include="BepInEx.Unity.IL2CPP" />
+		<Reference Include="Il2CppInterop.Common" />
+		<Reference Include="Il2CppInterop.Runtime" />
+		<Reference Include="Il2Cppmscorlib" />
+		<Reference Include="Assembly-CSharp" />
+		<Reference Include="Unity.Addressables" />
+		<Reference Include="Unity.ResourceManager" />
+		<Reference Include="UnityEngine" />
+		<Reference Include="UnityEngine.AudioModule" />
+		<Reference Include="UnityEngine.CoreModule" />
+		<Reference Include="UnityEngine.IMGUIModule" />
+		<Reference Include="UnityEngine.InputLegacyModule" />
+		<Reference Include="UnityEngine.TextRenderingModule" />
+		<Reference Include="UnityEngine.UnityWebRequestModule" />
+		<Reference Include="UnityEngine.UnityWebRequestAudioModule" />
+	</ItemGroup>
+
+	<Target Name="CopyToPlugins" AfterTargets="Build" Condition="Exists('$(BepInExPath)plugins')">
+		<Copy SourceFiles="$(OutputPath)$(AssemblyName).dll" DestinationFolder="$(PluginOutPath)" />
+	</Target>
+</Project>
