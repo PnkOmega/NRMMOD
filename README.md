@@ -13,7 +13,7 @@ fast, follow menu and pause handling, etc.).
    Music/
      garage/  meetspot/  cruise/  race/  race_win/  race_loss/  all/
    ```
-4. Drop `.ogg .wav .mp3 .flac` files into the scene folders. `all/` plays in garage, meetspot, cruise and race. The main menu music is not covered.
+4. Drop `.ogg .wav .mp3` files into the scene folders. `all/` plays in garage, meetspot, cruise and race. The main menu music is not covered.
    To share songs between scenes, make a folder named after them separated by spaces, e.g. `garage cruise`.
 5. Restart the game.
 

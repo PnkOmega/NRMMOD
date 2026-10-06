@@ -32,7 +32,6 @@ namespace NRRadio
 			[".wav"] = AudioType.WAV,
 			[".ogg"] = AudioType.OGGVORBIS,
 			[".mp3"] = AudioType.MPEG,
-			[".flac"] = AudioType.FLAC,
 		};
 
 		public static bool IsSupported(MusicPlayerState s) => FolderNames.ContainsKey(s);
@@ -53,7 +52,7 @@ namespace NRRadio
 			if (!File.Exists(readme))
 			{
 				File.WriteAllText(readme,
-					"Put songs (.ogg .wav .mp3 .flac) in the folder for the scene they should play in:\r\n" +
+					"Put songs (.ogg .wav .mp3) in the folder for the scene they should play in:\r\n" +
 					"  garage, meetspot, cruise, race, race_win, race_loss\r\n" +
 					"Songs in 'all' play in garage, meetspot, cruise and race.\r\n" +
 					"To use a song in several scenes, make a folder named after them separated by spaces,\r\n" +

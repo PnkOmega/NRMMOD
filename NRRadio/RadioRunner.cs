@@ -202,9 +202,12 @@ namespace NRRadio
 			_reqState = st;
 			_reqPlayNow = playNow;
 			_reqRecord = record;
-			_req = UnityWebRequestMultimedia.GetAudioClip(new Uri(path).AbsoluteUri, SongLibrary.TypeOf(path));
+			_req = UnityWebRequestMultimedia.GetAudioClip(ToFileUrl(path), SongLibrary.TypeOf(path));
 			_req.SendWebRequest();
 		}
+
+		private static string ToFileUrl(string path) =>
+			"file:///" + path.Replace('\\', '/').Replace("%", "%25").Replace("#", "%23").Replace("?", "%3F").Replace(" ", "%20");
 
 		private void PollRequest(MusicPlayer mp)
 		{
@@ -212,7 +215,7 @@ namespace NRRadio
 			var req = _req;
 			_req = null;
 
-			if (req.result != UnityWebRequest.Result.Success)
+			if (req.isNetworkError || req.isHttpError)
 			{
 				Plugin.Log.LogWarning($"Could not load {_reqPath}: {req.error}");
 				req.Dispose();
