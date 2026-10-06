@@ -30,7 +30,7 @@ per scene without repeats. When yours ends, the game picks again.
 | M | turn mixing custom songs into the playlist on/off |
 | N | unload unused audio to free RAM |
 
-Config also has `GarageMenuChancePercent` (default 100) and `OtherScenesChancePercent` (default 0).
+Config also has `GarageMenuChancePercent` (default 100) and `OtherScenesChancePercent` (default 75).
 
 ## Build
 .NET 6+ SDK and the game with BepInEx installed:

@@ -32,8 +32,8 @@ namespace NRRadio
 			GarageChancePercent = Config.Bind("Playlist", "GarageMenuChancePercent", 100,
 				new ConfigDescription("Chance (0-100) that the garage/menu plays one of your songs instead of the game's. 100 = only your songs (when the garage folder has any).",
 					new AcceptableValueRange<int>(0, 100)));
-			CustomChancePercent = Config.Bind("Playlist", "OtherScenesChancePercent", 0,
-				new ConfigDescription("Chance (0-100) that a song in cruise/race/meetspot is one of yours instead of the game's. 0 = always the game's music.",
+			CustomChancePercent = Config.Bind("Playlist", "OtherScenesChancePercent", 75,
+				new ConfigDescription("Chance (0-100) that a song in cruise/race/meetspot is one of yours instead of the game's. 75 = three of every four songs are yours.",
 					new AcceptableValueRange<int>(0, 100)));
 			PrevKey = Config.Bind("Keys", "PreviousCustomSong", KeyCode.O, "Play the previous custom song.");
 			NextKey = Config.Bind("Keys", "NextCustomSong", KeyCode.P, "Play a custom song now (replaces what is playing).");
