@@ -16,6 +16,7 @@ namespace NRRadio
 		internal static new ManualLogSource Log;
 		internal static ConfigEntry<bool> MixEnabled;
 		internal static ConfigEntry<int> CustomChancePercent;
+		internal static ConfigEntry<int> GarageChancePercent;
 		internal static ConfigEntry<KeyCode> PrevKey;
 		internal static ConfigEntry<KeyCode> NextKey;
 		internal static ConfigEntry<KeyCode> MixToggleKey;
@@ -28,8 +29,11 @@ namespace NRRadio
 
 			MixEnabled = Config.Bind("Playlist", "MixWithGameMusic", true,
 				"When on, your songs are mixed into the game's own playlist for each scene.");
-			CustomChancePercent = Config.Bind("Playlist", "CustomSongChancePercent", 50,
-				new ConfigDescription("Chance (0-100) that a new song is one of yours instead of the game's. 100 = only your songs when the scene folder has any.",
+			GarageChancePercent = Config.Bind("Playlist", "GarageMenuChancePercent", 100,
+				new ConfigDescription("Chance (0-100) that the garage/menu plays one of your songs instead of the game's. 100 = only your songs (when the garage folder has any).",
+					new AcceptableValueRange<int>(0, 100)));
+			CustomChancePercent = Config.Bind("Playlist", "OtherScenesChancePercent", 0,
+				new ConfigDescription("Chance (0-100) that a song in cruise/race/meetspot is one of yours instead of the game's. 0 = always the game's music.",
 					new AcceptableValueRange<int>(0, 100)));
 			PrevKey = Config.Bind("Keys", "PreviousCustomSong", KeyCode.O, "Play the previous custom song.");
 			NextKey = Config.Bind("Keys", "NextCustomSong", KeyCode.P, "Play a custom song now (replaces what is playing).");

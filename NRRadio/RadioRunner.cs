@@ -149,7 +149,8 @@ namespace NRRadio
 		{
 			if (!Plugin.MixEnabled.Value || !SongLibrary.IsSupported(_state)) return;
 			if (_readyClip == null || _readyState != _state) return;
-			if (UnityEngine.Random.Range(0, 100) >= Plugin.CustomChancePercent.Value) return;
+			var chance = _state == MusicPlayerState.Garage ? Plugin.GarageChancePercent.Value : Plugin.CustomChancePercent.Value;
+			if (UnityEngine.Random.Range(0, 100) >= chance) return;
 
 			if (_lastChanged != null && Time.unscaledTime - _lastChangeTime < 0.3f)
 			{
