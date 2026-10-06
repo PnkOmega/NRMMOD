@@ -1,39 +1,45 @@
 # NR Radio
 
-A custom radio / music mod for **NIGHT-RUNNERS** (Touge pre-alpha), built as a BepInEx 6 IL2CPP plugin.
-Each folder of music becomes a radio station you can tune with hotkeys; the game's own music effects
-(menus, pause, etc.) still apply because tracks play through the game's music `AudioSource`.
+A custom music mod for **NIGHT-RUNNERS** (Touge pre-alpha), a BepInEx 6 IL2CPP plugin modelled on
+[NRPFarMod](https://github.com/iLollek/NRPFarMod): your songs are mixed into the game's own playlist and play
+through the game's music channel, so they behave like the original soundtrack (they duck/change while driving
+fast, follow menu and pause handling, etc.).
 
 ## Install
-1. Install **BepInEx 6 Unity IL2CPP (build 647 or newer)** into the game folder and launch the game once so
-   BepInEx generates its `interop` assemblies.
-2. Copy `NRRadio.dll` into `BepInEx/plugins/NRRadio/`.
-3. Launch the game once. A `Radio` folder appears next to the game exe.
-4. Put music in sub-folders of `Radio` — **folder name = station name**:
+1. Install **BepInEx 6 Unity IL2CPP (build 647 or newer)** and launch the game once so BepInEx generates `interop`.
+2. Copy `NRRadio.dll` to `BepInEx/plugins/NRRadio/`.
+3. Launch the game once. A `Music` folder appears next to the game exe with one folder per scene:
    ```
-   Radio/
-     Midnight FM/   song1.ogg  song2.mp3
-     Touge Tapes/   a.wav  b.flac
+   Music/
+     main_menu/  garage/  cruise/  meetspot/  race/  all/
    ```
-5. Relaunch. Supported: `.ogg .wav .mp3 .flac`.
+4. Drop `.ogg .wav .mp3 .flac` files into the scene folders. `all/` plays in every scene.
+   To share songs between scenes, make a folder named after them separated by spaces, e.g. `garage cruise`.
+5. Restart the game.
 
-## Controls (changeable in `BepInEx/config/nrmmod.NRRadio.cfg`)
+## How it plays
+Whenever the game picks its next song (scene start, song ends, or you skip on the phone) there is a chance
+(default 50%) one of **your** songs for that scene plays instead; otherwise the game plays its own. Songs shuffle
+per scene without repeats. When yours ends, the game picks again.
+
+## Hotkeys (configurable in `BepInEx/config/nrmmod.NRRadio.cfg`)
 | Key | Action |
 |-----|--------|
-| F3  | next station (after the last one: radio off → game music) |
-| F4  | previous station |
-| F2  | skip track |
+| P | play a custom song now (next in shuffle) |
+| O | previous custom song |
+| M | turn mixing custom songs into the playlist on/off |
+| N | unload unused audio to free RAM |
 
-Tracks shuffle per station (everything plays once before repeats) and continue across scene changes.
+Config also has `CustomSongChancePercent` (100 = only your songs when the scene has any).
 
 ## Build
-Needs the .NET 6+ SDK and the game with BepInEx already installed.
+.NET 6+ SDK and the game with BepInEx installed:
 ```
-cp game.props.example game.props   # edit GamePath
+cp game.props.example game.props   # set GamePath
 dotnet build NRRadio -c Release
 ```
-The DLL is copied into `BepInEx/plugins/NRRadio/` automatically if that folder's parent exists.
 
 ## Status
-Untested against the game: written from the public game API names (`GodConstant`, `RCC_Settings`) used by
-other NIGHT-RUNNERS mods. If the pre-alpha renames them, adjust `RadioPatches.cs`.
+Not compiled or run against the game yet. It relies on `GodConstant` / `RCC_Settings` members seen in other
+NIGHT-RUNNERS mods; if the pre-alpha renames any, adjust `RadioPatches.cs` / `RadioRunner.cs`.
+Not implemented from NRPFarMod: the INSERT GUI and per-song volume/pitch editing.

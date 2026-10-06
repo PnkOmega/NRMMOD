@@ -34,6 +34,8 @@
 		<Reference Include="Assembly-CSharp" />
 		<Reference Include="Unity.Addressables" />
 		<Reference Include="Unity.ResourceManager" />
+		<Reference Include="Unity.TextMeshPro" />
+		<Reference Include="UnityEngine.UI" />
 		<Reference Include="UnityEngine" />
 		<Reference Include="UnityEngine.AudioModule" />
 		<Reference Include="UnityEngine.CoreModule" />

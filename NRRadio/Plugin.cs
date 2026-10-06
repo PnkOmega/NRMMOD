@@ -12,22 +12,31 @@ namespace NRRadio
 	public class Plugin : BasePlugin
 	{
 		public const string Guid = "nrmmod.NRRadio";
-		public const string Version = "0.1.0";
+		public const string Version = "0.2.0";
 
 		internal static new ManualLogSource Log;
-		internal static ConfigEntry<KeyCode> NextStationKey;
-		internal static ConfigEntry<KeyCode> PrevStationKey;
-		internal static ConfigEntry<KeyCode> NextTrackKey;
+		internal static ConfigEntry<bool> MixEnabled;
+		internal static ConfigEntry<int> CustomChancePercent;
+		internal static ConfigEntry<KeyCode> PrevKey;
+		internal static ConfigEntry<KeyCode> NextKey;
+		internal static ConfigEntry<KeyCode> MixToggleKey;
+		internal static ConfigEntry<KeyCode> FreeMemoryKey;
 		internal static ConfigEntry<bool> ShowToasts;
 
 		public override void Load()
 		{
 			Log = base.Log;
 
-			NextStationKey = Config.Bind("Keys", "NextStation", KeyCode.F3, "Tune to the next radio station (after the last one the radio goes back to the game's own music).");
-			PrevStationKey = Config.Bind("Keys", "PreviousStation", KeyCode.F4, "Tune to the previous radio station.");
-			NextTrackKey = Config.Bind("Keys", "NextTrack", KeyCode.F2, "Skip to another track on the current station.");
-			ShowToasts = Config.Bind("UI", "ShowToasts", true, "Show a small on-screen label when the station or track changes.");
+			MixEnabled = Config.Bind("Playlist", "MixWithGameMusic", true,
+				"When on, your songs are mixed into the game's own playlist for each scene.");
+			CustomChancePercent = Config.Bind("Playlist", "CustomSongChancePercent", 50,
+				new ConfigDescription("Chance (0-100) that the next song is one of yours instead of the game's. 100 = only your songs when the scene folder has any.",
+					new AcceptableValueRange<int>(0, 100)));
+			PrevKey = Config.Bind("Keys", "PreviousCustomSong", KeyCode.O, "Play the previous custom song.");
+			NextKey = Config.Bind("Keys", "NextCustomSong", KeyCode.P, "Play a custom song now (replaces what is playing).");
+			MixToggleKey = Config.Bind("Keys", "ToggleMix", KeyCode.M, "Turn mixing custom songs into the game's playlist on/off.");
+			FreeMemoryKey = Config.Bind("Keys", "FreeMemory", KeyCode.N, "Unload audio that is no longer used.");
+			ShowToasts = Config.Bind("UI", "ShowToasts", true, "Show a small on-screen label for mod messages.");
 
 			ClassInjector.RegisterTypeInIl2Cpp<RadioRunner>();
 
@@ -37,7 +46,7 @@ namespace NRRadio
 			RadioRunner.Instance = go.AddComponent<RadioRunner>();
 
 			Harmony.CreateAndPatchAll(typeof(RadioPatches));
-			Log.LogInfo($"NR Radio {Version} loaded. Stations folder: {StationLibrary.RootPath}");
+			Log.LogInfo($"NR Radio {Version} loaded. Music folder: {SongLibrary.RootPath}");
 		}
 	}
 }
