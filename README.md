@@ -19,7 +19,7 @@ fast, follow menu and pause handling, etc.).
 
 ## How it plays
 Whenever the game picks its next song (scene start, song ends, or you skip on the phone) there is a chance
-(default: 100% in the garage/menu, 0% elsewhere) one of **your** songs for that scene plays instead; otherwise the game plays its own. Songs shuffle
+(default: 100% in the garage/menu, 75% elsewhere) one of **your** songs for that scene plays instead; otherwise the game plays its own. Songs shuffle
 per scene without repeats. When yours ends, the game picks again.
 
 ## Hotkeys (configurable in `BepInEx/config/nrmmod.NRRadio.cfg`)
