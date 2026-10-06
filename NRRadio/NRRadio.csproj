@@ -31,6 +31,7 @@
 		<Reference Include="Il2CppInterop.Common" />
 		<Reference Include="Il2CppInterop.Runtime" />
 		<Reference Include="Il2Cppmscorlib" />
+    <Reference Include="Il2CppSystem" />
 		<Reference Include="Assembly-CSharp" />
 		<Reference Include="Unity.Addressables" />
 		<Reference Include="Unity.ResourceManager" />
