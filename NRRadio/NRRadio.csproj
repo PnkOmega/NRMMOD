@@ -35,6 +35,7 @@
 		<Reference Include="Unity.Addressables" />
 		<Reference Include="Unity.ResourceManager" />
 		<Reference Include="Unity.TextMeshPro" />
+		<Reference Include="UniTask" />
 		<Reference Include="UnityEngine.UI" />
 		<Reference Include="UnityEngine" />
 		<Reference Include="UnityEngine.AudioModule" />

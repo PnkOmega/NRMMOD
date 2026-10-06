@@ -2,7 +2,6 @@ using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Logging;
 using BepInEx.Unity.IL2CPP;
-using HarmonyLib;
 using Il2CppInterop.Runtime.Injection;
 using UnityEngine;
 
@@ -12,7 +11,7 @@ namespace NRRadio
 	public class Plugin : BasePlugin
 	{
 		public const string Guid = "nrmmod.NRRadio";
-		public const string Version = "0.2.0";
+		public const string Version = "0.3.0";
 
 		internal static new ManualLogSource Log;
 		internal static ConfigEntry<bool> MixEnabled;
@@ -30,7 +29,7 @@ namespace NRRadio
 			MixEnabled = Config.Bind("Playlist", "MixWithGameMusic", true,
 				"When on, your songs are mixed into the game's own playlist for each scene.");
 			CustomChancePercent = Config.Bind("Playlist", "CustomSongChancePercent", 50,
-				new ConfigDescription("Chance (0-100) that the next song is one of yours instead of the game's. 100 = only your songs when the scene folder has any.",
+				new ConfigDescription("Chance (0-100) that a new song is one of yours instead of the game's. 100 = only your songs when the scene folder has any.",
 					new AcceptableValueRange<int>(0, 100)));
 			PrevKey = Config.Bind("Keys", "PreviousCustomSong", KeyCode.O, "Play the previous custom song.");
 			NextKey = Config.Bind("Keys", "NextCustomSong", KeyCode.P, "Play a custom song now (replaces what is playing).");
@@ -45,7 +44,6 @@ namespace NRRadio
 			go.hideFlags = HideFlags.HideAndDontSave;
 			RadioRunner.Instance = go.AddComponent<RadioRunner>();
 
-			Harmony.CreateAndPatchAll(typeof(RadioPatches));
 			Log.LogInfo($"NR Radio {Version} loaded. Music folder: {SongLibrary.RootPath}");
 		}
 	}

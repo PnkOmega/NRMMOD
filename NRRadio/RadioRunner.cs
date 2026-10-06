@@ -1,15 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using PlanetJem.Audio;
 using UnityEngine;
 using UnityEngine.Networking;
 
 namespace NRRadio
 {
 	/// <summary>
-	/// Plays custom songs through the game's own music AudioSource (GodConstant.musicSource) and resets the same
-	/// music parameters the game does for its songs, so the game's normal music behaviour (ducking while driving
-	/// fast, reverb zones, menu/pause handling) keeps applying to your songs.
+	/// Adds custom songs to the game's own playlist. When the game starts one of its tracks, there is a chance
+	/// we swap the clip on the same AudioSource for one of the player's songs. Because it stays on the game's
+	/// music source/mixer group, the game's own music handling (speed ducking, filters, fades) still applies.
+	/// The game's player also notices when the source finishes and moves on to its next track by itself.
 	/// </summary>
 	public class RadioRunner : MonoBehaviour
 	{
@@ -17,25 +19,91 @@ namespace NRRadio
 
 		internal static RadioRunner Instance;
 
-		private enum State { Idle, Loading, Playing }
+		private AudioManager _am;
+		private float _nextFind;
+		private MusicPlayerState _state = MusicPlayerState.Off;
+		private readonly Dictionary<MusicPlayerState, Playlist> _playlists = new();
 
-		private readonly Dictionary<GodConstant.Music_State, Playlist> _playlists = new();
-		private State _state = State.Idle;
-		private GodConstant.Music_State _scene = GodConstant.Music_State.off;
-		private UnityWebRequest _request;
-		private string _loadingPath;
-		private AudioClip _clip;
-		private bool _sawPlaying;
-		private bool _advancing;
+		// Detecting that the game started a track, and which AudioSource it put it on.
+		private IntPtr _lastPtr, _ownPtr, _pa, _pb;
+		private AudioSource _lastChanged;
+		private float _lastChangeTime;
+		private bool _wantSwap;
+		private float _wantDeadline;
+		private AudioSource _swapTarget;
+		private int _swapFrame;
+
+		// Song loading: one request at a time, one song kept ready.
+		private UnityWebRequest _req;
+		private string _reqPath;
+		private MusicPlayerState _reqState;
+		private bool _reqPlayNow, _reqRecord;
+		private AudioClip _readyClip;
+		private string _readyPath;
+		private MusicPlayerState _readyState;
+		private bool _readyRecord;
+
+		private AudioClip _custom;
+		private readonly List<(AudioClip clip, float time)> _old = new();
+		private readonly List<string> _played = new();
+		private int _cursor = -1;
+
 		private string _toast;
 		private float _toastUntil;
 
-		internal string CurrentTrackName { get; private set; }
-		internal bool IsCustomActive => _state != State.Idle;
-
 		private void Start() => SongLibrary.EnsureFolders();
 
+		private MusicPlayer Player => _am != null ? _am.Player : null;
+
 		private void Update()
+		{
+			HandleKeys();
+
+			if (_am == null && Time.unscaledTime >= _nextFind)
+			{
+				_nextFind = Time.unscaledTime + 1f;
+				_am = FindObjectOfType<AudioManager>();
+			}
+
+			var mp = Player;
+			if (mp == null) return;
+
+			PollRequest(mp);
+			TrackClips(mp);
+
+			var st = mp.State;
+			if (st != _state)
+			{
+				_state = st;
+				if (_readyClip != null && _readyState != st) DestroyReady();
+			}
+
+			var np = mp.NowPlaying;
+			var ptr = np is null ? IntPtr.Zero : np.Pointer;
+			if (ptr != _lastPtr)
+			{
+				_lastPtr = ptr;
+				if (ptr != _ownPtr) OnGameTrackStarted();
+			}
+
+			if (_wantSwap && Time.unscaledTime > _wantDeadline)
+			{
+				// No clip change seen after the track started: assume it was assigned just before.
+				_wantSwap = false;
+				_swapTarget = _lastChanged != null ? _lastChanged : mp.currentSource_;
+				_swapFrame = Time.frameCount + 1;
+			}
+			if (_swapFrame > 0 && Time.frameCount >= _swapFrame)
+			{
+				_swapFrame = 0;
+				ApplyReady(mp, _swapTarget);
+			}
+
+			EnsurePreload();
+			ReapOld(mp);
+		}
+
+		private void HandleKeys()
 		{
 			if (Input.GetKeyDown(Plugin.MixToggleKey.Value))
 			{
@@ -49,15 +117,204 @@ namespace NRRadio
 				Resources.UnloadUnusedAssets();
 				Toast("Unloaded unused audio");
 			}
+		}
 
-			if (_state == State.Loading && _request != null && _request.isDone)
+		private static IntPtr ClipPtr(AudioSource s) => s == null || s.clip == null ? IntPtr.Zero : s.clip.Pointer;
+
+		/// <summary>Watch both of the game's music sources so we can tell which one got the new track.</summary>
+		private void TrackClips(MusicPlayer mp)
+		{
+			var a = mp.sourceA_;
+			var b = mp.sourceB_;
+			var now = Time.unscaledTime;
+			var pa = ClipPtr(a);
+			var pb = ClipPtr(b);
+			if (pa != _pa) { _pa = pa; OnClipChanged(a, now); }
+			if (pb != _pb) { _pb = pb; OnClipChanged(b, now); }
+		}
+
+		private void OnClipChanged(AudioSource src, float now)
+		{
+			_lastChanged = src;
+			_lastChangeTime = now;
+			if (_wantSwap)
 			{
-				FinishLoad();
+				_wantSwap = false;
+				_swapTarget = src;
+				_swapFrame = Time.frameCount + 1;
 			}
-			else if (_state == State.Playing)
+		}
+
+		private void OnGameTrackStarted()
+		{
+			if (!Plugin.MixEnabled.Value || !SongLibrary.IsSupported(_state)) return;
+			if (_readyClip == null || _readyState != _state) return;
+			if (UnityEngine.Random.Range(0, 100) >= Plugin.CustomChancePercent.Value) return;
+
+			if (_lastChanged != null && Time.unscaledTime - _lastChangeTime < 0.3f)
 			{
-				CheckForEnd();
+				_swapTarget = _lastChanged;
+				_swapFrame = Time.frameCount + 1;
 			}
+			else
+			{
+				_wantSwap = true;
+				_wantDeadline = Time.unscaledTime + 0.75f;
+			}
+		}
+
+		private void PlayNow(bool previous)
+		{
+			var mp = Player;
+			if (mp == null) return;
+			if (!SongLibrary.IsSupported(mp.State))
+			{
+				Toast("No custom songs for this scene");
+				return;
+			}
+
+			string path;
+			var record = true;
+			if (previous)
+			{
+				if (_cursor <= 0) { Toast("No previous custom song"); return; }
+				path = _played[--_cursor];
+				record = false;
+			}
+			else
+			{
+				path = PlaylistFor(mp.State).Next(mp.State);
+			}
+
+			if (path == null)
+			{
+				Toast($"No songs in Music/{SongLibrary.NameOf(mp.State)}");
+				return;
+			}
+			StartLoad(path, mp.State, playNow: true, record);
+		}
+
+		private void StartLoad(string path, MusicPlayerState st, bool playNow, bool record)
+		{
+			DisposeRequest();
+			_reqPath = path;
+			_reqState = st;
+			_reqPlayNow = playNow;
+			_reqRecord = record;
+			_req = UnityWebRequestMultimedia.GetAudioClip(new Uri(path).AbsoluteUri, SongLibrary.TypeOf(path));
+			_req.SendWebRequest();
+		}
+
+		private void PollRequest(MusicPlayer mp)
+		{
+			if (_req == null || !_req.isDone) return;
+			var req = _req;
+			_req = null;
+
+			if (req.result != UnityWebRequest.Result.Success)
+			{
+				Plugin.Log.LogWarning($"Could not load {_reqPath}: {req.error}");
+				req.Dispose();
+				return;
+			}
+
+			var clip = DownloadHandlerAudioClip.GetContent(req);
+			req.Dispose();
+			if (clip == null) return;
+			clip.name = Path.GetFileNameWithoutExtension(_reqPath);
+
+			DestroyReady();
+			_readyClip = clip;
+			_readyPath = _reqPath;
+			_readyState = _reqState;
+			_readyRecord = _reqRecord;
+
+			if (_reqPlayNow) ApplyReady(mp, mp.currentSource_);
+		}
+
+		private void EnsurePreload()
+		{
+			if (_req != null || _readyClip != null) return;
+			if (!Plugin.MixEnabled.Value || !SongLibrary.IsSupported(_state)) return;
+			var path = PlaylistFor(_state).Next(_state);
+			if (path != null) StartLoad(path, _state, playNow: false, record: true);
+		}
+
+		/// <summary>Put the ready song on the given music source and show its name.</summary>
+		private void ApplyReady(MusicPlayer mp, AudioSource src)
+		{
+			if (_readyClip == null) return;
+			if (src == null) src = mp.currentSource_;
+			if (src == null) return;
+
+			if (_custom != null) _old.Add((_custom, Time.unscaledTime));
+			src.clip = _readyClip;
+			src.time = 0f;
+			src.Play();
+			_custom = _readyClip;
+			_readyClip = null;
+
+			// Don't let the clip swap be mistaken for the game starting another track.
+			_pa = ClipPtr(mp.sourceA_);
+			_pb = ClipPtr(mp.sourceB_);
+
+			if (_readyRecord)
+			{
+				_played.Add(_readyPath);
+				if (_played.Count > 50) _played.RemoveAt(0);
+				_cursor = _played.Count - 1;
+			}
+			ShowNowPlaying(mp, _custom.name);
+			Toast(_custom.name);
+		}
+
+		private void ShowNowPlaying(MusicPlayer mp, string title)
+		{
+			try
+			{
+				var entry = new MusicTrackEntry();
+				entry.TrackName = title;
+				mp._NowPlaying_k__BackingField = entry;
+				_ownPtr = entry.Pointer;
+				_lastPtr = entry.Pointer;
+				mp.RefreshNowPlayingOverlay(true);
+			}
+			catch (Exception e)
+			{
+				Plugin.Log.LogWarning("Could not update the now-playing display: " + e.Message);
+			}
+		}
+
+		/// <summary>Destroy clips we replaced once no source uses them and the game's fade has finished.</summary>
+		private void ReapOld(MusicPlayer mp)
+		{
+			for (var i = _old.Count - 1; i >= 0; i--)
+			{
+				var (clip, time) = _old[i];
+				if (Time.unscaledTime - time < 10f) continue;
+				if (clip != null && (mp.sourceA_.clip == clip || mp.sourceB_.clip == clip)) continue;
+				if (clip != null) Destroy(clip);
+				_old.RemoveAt(i);
+			}
+		}
+
+		private Playlist PlaylistFor(MusicPlayerState st)
+		{
+			if (!_playlists.TryGetValue(st, out var p)) _playlists[st] = p = new Playlist();
+			return p;
+		}
+
+		private void DestroyReady()
+		{
+			if (_readyClip != null) Destroy(_readyClip);
+			_readyClip = null;
+		}
+
+		private void DisposeRequest()
+		{
+			if (_req == null) return;
+			_req.Dispose();
+			_req = null;
 		}
 
 		private void OnGUI()
@@ -69,186 +326,6 @@ namespace NRRadio
 			GUI.Label(new Rect(rect.x + 2f, rect.y + 2f, rect.width, rect.height), _toast, style);
 			style.normal.textColor = new Color(0.4f, 1f, 0.4f);
 			GUI.Label(rect, _toast, style);
-		}
-
-		/// <summary>
-		/// Called by the game-hook whenever the game is about to choose its next song for a scene.
-		/// Returns true if one of our songs took over (the game's own pick is then skipped).
-		/// </summary>
-		internal bool OnGameWantsSong(GodConstant.Music_State scene)
-		{
-			_scene = scene;
-			if (!SongLibrary.IsSceneSupported(scene) || !Plugin.MixEnabled.Value)
-			{
-				ReleaseCustom();
-				return false;
-			}
-
-			var roll = UnityEngine.Random.Range(0, 100);
-			if (roll < Plugin.CustomChancePercent.Value && Play(PlaylistFor(scene).Next(scene)))
-			{
-				return true;
-			}
-
-			ReleaseCustom();
-			return false;
-		}
-
-		/// <summary>Scene change / loading: drop our clip so the game's audio setup is left clean.</summary>
-		internal void OnSceneLoading() => ReleaseCustom();
-
-		private void PlayNow(bool previous)
-		{
-			var god = GodConstant.Instance;
-			if (god == null) return;
-			if (!SongLibrary.IsSceneSupported(god.music_State))
-			{
-				Toast("No custom songs for this scene");
-				return;
-			}
-
-			_scene = god.music_State;
-			var list = PlaylistFor(_scene);
-			var path = previous ? list.Previous() : list.Next(_scene);
-			if (path == null)
-			{
-				Toast($"No songs in Music/{_scene}");
-				return;
-			}
-			Play(path);
-		}
-
-		private bool Play(string path)
-		{
-			if (path == null) return false;
-
-			ReleaseClip();
-			_loadingPath = path;
-			_state = State.Loading;
-			_sawPlaying = false;
-
-			_request = UnityWebRequestMultimedia.GetAudioClip(new Uri(path).AbsoluteUri, SongLibrary.TypeOf(path));
-			_request.SendWebRequest();
-			return true;
-		}
-
-		private void FinishLoad()
-		{
-			var req = _request;
-			_request = null;
-			var path = _loadingPath;
-
-			if (req.result != UnityWebRequest.Result.Success)
-			{
-				Plugin.Log.LogWarning($"Could not load {path}: {req.error}");
-				req.Dispose();
-				_state = State.Idle;
-				HandOverToGame();
-				return;
-			}
-
-			_clip = DownloadHandlerAudioClip.GetContent(req);
-			req.Dispose();
-
-			var god = GodConstant.Instance;
-			if (_clip == null || god == null || god.musicSource == null)
-			{
-				_state = State.Idle;
-				return;
-			}
-
-			var title = Path.GetFileNameWithoutExtension(path);
-			_clip.name = title;
-			CurrentTrackName = title;
-
-			// Same reset the game applies when one of its own songs starts, so its dynamic music handling
-			// (volume target driven by speed etc.) takes over from a known state.
-			god.musicSource.Stop();
-			god.musicSource.clip = _clip;
-			god.musicSource.reverbZoneMix = 1f;
-			god.musicSource.pitch = 1f;
-			god.musicVol_Target = 0f;
-			god.musicSource.Play();
-			_state = State.Playing;
-
-			god.nowPlaying = new RCC_Settings.SoundtrackSong { song_ID = RCC_Settings.SongTrack_ID.null_song };
-			var ui = god.UI_Data;
-			if (ui != null)
-			{
-				ui.start_fade_nowPlaying(false);
-				if (ui.ui_nowPlayingText != null) ui.ui_nowPlayingText.text = title;
-			}
-		}
-
-		private void CheckForEnd()
-		{
-			var god = GodConstant.Instance;
-			var src = god?.musicSource;
-			if (src == null) return;
-
-			if (src.isPlaying) { _sawPlaying = true; return; }
-
-			// Finished = the source stopped and rewound after actually playing. A paused source keeps its time,
-			// and loading screens / music-off are the game's business, not a track ending.
-			if (!_sawPlaying || src.time > 0f) return;
-			if (god.loading_StayInLoadingScreen || !SongLibrary.IsSceneSupported(god.music_State)) return;
-
-			_scene = god.music_State;
-			_state = State.Idle;
-			HandOverToGame();
-		}
-
-		/// <summary>Our song is over: let the game choose again (it may pick its own song or call us back).</summary>
-		private void HandOverToGame()
-		{
-			var god = GodConstant.Instance;
-			if (god == null || _advancing) return;
-			_advancing = true;
-			try
-			{
-				god.StartCoroutine(god.music_findNextSong(_scene, false));
-			}
-			catch (Exception e)
-			{
-				Plugin.Log.LogWarning("Could not ask the game for its next song, repeating custom playlist: " + e.Message);
-				Play(PlaylistFor(_scene).Next(_scene));
-			}
-			finally
-			{
-				_advancing = false;
-			}
-		}
-
-		/// <summary>Stop managing the music source (the game is about to use it itself).</summary>
-		internal void ReleaseCustom()
-		{
-			if (_request != null)
-			{
-				_request.Dispose();
-				_request = null;
-			}
-			_state = State.Idle;
-			CurrentTrackName = null;
-			ReleaseClip();
-		}
-
-		private void ReleaseClip()
-		{
-			if (_clip == null) return;
-			var src = GodConstant.Instance?.musicSource;
-			if (src != null && src.clip == _clip)
-			{
-				src.Stop();
-				src.clip = null;
-			}
-			Destroy(_clip);
-			_clip = null;
-		}
-
-		private Playlist PlaylistFor(GodConstant.Music_State scene)
-		{
-			if (!_playlists.TryGetValue(scene, out var p)) _playlists[scene] = p = new Playlist();
-			return p;
 		}
 
 		private void Toast(string text)

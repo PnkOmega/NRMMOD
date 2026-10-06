@@ -11,9 +11,9 @@ fast, follow menu and pause handling, etc.).
 3. Launch the game once. A `Music` folder appears next to the game exe with one folder per scene:
    ```
    Music/
-     main_menu/  garage/  cruise/  meetspot/  race/  all/
+     garage/  meetspot/  cruise/  race/  race_win/  race_loss/  all/
    ```
-4. Drop `.ogg .wav .mp3 .flac` files into the scene folders. `all/` plays in every scene.
+4. Drop `.ogg .wav .mp3 .flac` files into the scene folders. `all/` plays in garage, meetspot, cruise and race. The main menu music is not covered.
    To share songs between scenes, make a folder named after them separated by spaces, e.g. `garage cruise`.
 5. Restart the game.
 
@@ -30,7 +30,7 @@ per scene without repeats. When yours ends, the game picks again.
 | M | turn mixing custom songs into the playlist on/off |
 | N | unload unused audio to free RAM |
 
-Config also has `CustomSongChancePercent` (100 = only your songs when the scene has any).
+Config also has `CustomChancePercent` (100 = only your songs when the scene has any).
 
 ## Build
 .NET 6+ SDK and the game with BepInEx installed:
@@ -40,6 +40,7 @@ dotnet build NRRadio -c Release
 ```
 
 ## Status
-Not compiled or run against the game yet. It relies on `GodConstant` / `RCC_Settings` members seen in other
-NIGHT-RUNNERS mods; if the pre-alpha renames any, adjust `RadioPatches.cs` / `RadioRunner.cs`.
-Not implemented from NRPFarMod: the INSERT GUI and per-song volume/pitch editing.
+v0.3.0: rewritten on the pre-alpha's real music classes (`PlanetJem.Audio.AudioManager` / `MusicPlayer`).
+Custom clips are swapped onto the game's own music AudioSource, so its fades, ducking and filters apply, and
+the game's now-playing overlay shows the song name. Not compiled or run against the game yet; expect possible
+API mismatches. Not implemented from NRPFarMod: the INSERT GUI and per-song volume/pitch editing.
